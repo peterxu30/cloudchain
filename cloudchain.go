@@ -51,8 +51,8 @@ func NewCloudChain(ctx context.Context, projectId string, difficulty int, genesi
 		return nil, errors.New("Config collection not found")
 	}
 
-	_, err = configCollectionRef.Doc(initialized).Get(ctx)
-	if grpc.Code(err) == codes.NotFound {
+	dsnap, err := configCollectionRef.Doc(initialized).Get(ctx)
+	if grpc.Code(err) == codes.NotFound || !dsnap.Exists() {
 		// initialize the cloudchain
 		_, err = configCollectionRef.Doc(difficultyDoc).Set(ctx, difficulty)
 		if err != nil {
