@@ -54,7 +54,9 @@ func NewCloudChain(ctx context.Context, projectId string, difficulty int, genesi
 	_, err = configCollectionRef.Doc(initialized).Get(ctx)
 	if grpc.Code(err) == codes.NotFound {
 		// initialize the cloudchain
-		_, err = configCollectionRef.Doc(difficultyDoc).Set(ctx, difficulty)
+		difficultyMap := make(map[string]int)
+		difficultyMap[difficultyDoc] = difficulty
+		_, err = configCollectionRef.Doc(difficultyDoc).Set(ctx, difficultyMap)
 		if err != nil {
 			return nil, err
 		}
@@ -102,8 +104,8 @@ func NewCloudChain(ctx context.Context, projectId string, difficulty int, genesi
 			return nil, err
 		}
 
-		var difficultyVal int
-		err = difficultySnap.DataTo(&difficultyVal)
+		var difficultyMap map[string]int
+		err = difficultySnap.DataTo(&difficultyMap)
 		if err != nil {
 			return nil, err
 		}
@@ -111,7 +113,7 @@ func NewCloudChain(ctx context.Context, projectId string, difficulty int, genesi
 		return &CloudChain{
 			projectId:  projectId,
 			head:       headVal,
-			difficulty: difficultyVal,
+			difficulty: difficultyMap[difficultyDoc],
 		}, nil
 	} else {
 		return nil, err
