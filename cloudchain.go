@@ -3,6 +3,7 @@ package cloudchain
 
 import (
 	"context"
+	"errors"
 
 	"google.golang.org/api/iterator"
 	"google.golang.org/grpc"
@@ -46,6 +47,10 @@ func NewCloudChain(ctx context.Context, projectId string, difficulty int, genesi
 	defer client.Close()
 
 	configCollectionRef := client.Collection(configCollection)
+	if configCollectionRef == nil {
+		return nil, errors.New("Config collection not found")
+	}
+
 	dsnap, err := configCollectionRef.Doc(initialized).Get(ctx)
 	if grpc.Code(err) == codes.NotFound || !dsnap.Exists() {
 		// initialize the cloudchain
