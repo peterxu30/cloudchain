@@ -56,13 +56,6 @@ func NewCloudChain(ctx context.Context, projectId string, difficulty int, genesi
 	_, err = configCollectionRef.Doc(cloudChainDoc).Get(ctx)
 	if grpc.Code(err) == codes.NotFound {
 		// initialize the cloudchain
-		difficultyMap := make(map[string]int)
-		difficultyMap[difficultyDoc] = difficulty
-		_, err = configCollectionRef.Doc(difficultyDoc).Set(ctx, difficultyMap)
-		if err != nil {
-			return nil, err
-		}
-
 		blocksCollectionRef := client.Collection(blocksCollection)
 		genesisBlock := newGenesisBlock(genesisData)
 		genesisBlockHash := genesisBlock.Header.Hash
@@ -201,7 +194,7 @@ func (cci *CloudChainIterator) Next() (*Block, error) {
 		return nil, nil
 	}
 
-	blockSnap, err := cci.ref.Doc(string(cci.currentHash)).Get(cci.ctx)
+	blockSnap, err := cci.ref.Doc(cci.currentHash).Get(cci.ctx)
 	if err != nil {
 		return nil, err
 	}
