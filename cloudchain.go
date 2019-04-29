@@ -26,9 +26,9 @@ const (
 // Blockchain is the in-memory representation of the Blockchain.
 // It does not actually store the blocks in-memory but rather the metadata required to read blocks from db.
 type CloudChain struct {
-	projectId  string
-	head       string
-	difficulty int
+	ProjectId  string
+	Head       string
+	Difficulty int
 }
 
 // BlockchainIterator is the iterator that traverses the Blockchain.
@@ -67,9 +67,9 @@ func NewCloudChain(ctx context.Context, projectId string, difficulty int, genesi
 		}
 
 		cloudChain := &CloudChain{
-			projectId:  projectId,
-			head:       genesisBlockHash,
-			difficulty: difficulty,
+			ProjectId:  projectId,
+			Head:       genesisBlockHash,
+			Difficulty: difficulty,
 		}
 
 		_, err = configCollectionRef.Doc(cloudChainDoc).Set(ctx, cloudChain)
@@ -107,7 +107,7 @@ func newGenesisBlock(data []byte) *Block {
 
 // AddBlock adds a block containing the input data to the front of the CloudChain.
 func (cc *CloudChain) AddBlock(ctx context.Context, data []byte) (*Block, error) {
-	client, err := firestore.NewClient(ctx, cc.projectId)
+	client, err := firestore.NewClient(ctx, cc.ProjectId)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func (cc *CloudChain) AddBlock(ctx context.Context, data []byte) (*Block, error)
 	configCollectionRef := client.Collection(configCollection)
 	blocksCollectionRef := client.Collection(blocksCollection)
 
-	newBlock := newBlock(cc.difficulty, cc.head, data)
+	newBlock := newBlock(cc.Difficulty, cc.Head, data)
 	newBlockHash := newBlock.Header.Hash
 
 	//check if block already exists
@@ -144,12 +144,12 @@ func (cc *CloudChain) AddBlock(ctx context.Context, data []byte) (*Block, error)
 	// 	return nil, err
 	// }
 
-	oldBlockHash := cc.head
-	cc.head = newBlockHash
+	oldBlockHash := cc.Head
+	cc.Head = newBlockHash
 
 	_, err = configCollectionRef.Doc(cloudChainDoc).Set(ctx, cc)
 	if err != nil {
-		cc.head = oldBlockHash
+		cc.Head = oldBlockHash
 		cc.deleteBadBlock(ctx, blocksCollectionRef, newBlockHash)
 		return nil, err
 	}
@@ -164,18 +164,18 @@ func (cc *CloudChain) deleteBadBlock(ctx context.Context, blocksCollectionRef *f
 }
 
 // Difficulty returns the difficulty of the Blockchain.
-func (cc *CloudChain) Difficulty() int {
-	return cc.difficulty
-}
+// func (cc *CloudChain) Difficulty() int {
+// 	return cc.Difficulty
+// }
 
 // Iterator returns an iterator that traverses the Blockchain from most recent block to oldest.
 func (cc *CloudChain) Iterator(ctx context.Context) (*CloudChainIterator, error) {
-	return cc.IteratorAtBlock(ctx, cc.head)
+	return cc.IteratorAtBlock(ctx, cc.Head)
 }
 
 // IteratorAtBlock returns an iterator that traverses the Blockchain from the block with input hash to oldest.
 func (cc *CloudChain) IteratorAtBlock(ctx context.Context, hash string) (*CloudChainIterator, error) {
-	client, err := firestore.NewClient(ctx, cc.projectId)
+	client, err := firestore.NewClient(ctx, cc.ProjectId)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +211,7 @@ func (cci *CloudChainIterator) Next() (*Block, error) {
 
 // DeleteBlockchain deletes the input Blockchain and all stored data. This is permanent and irreversible.
 func DeleteCloudChain(ctx context.Context, cc *CloudChain) error {
-	client, err := firestore.NewClient(ctx, cc.projectId)
+	client, err := firestore.NewClient(ctx, cc.ProjectId)
 	if err != nil {
 		return err
 	}
