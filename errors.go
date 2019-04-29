@@ -3,7 +3,7 @@ package cloudchain
 import "fmt"
 
 type collisionError struct {
-	hash []byte
+	hash string
 }
 
 func (e *collisionError) Error() string {

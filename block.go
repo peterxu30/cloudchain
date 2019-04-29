@@ -3,6 +3,8 @@ package cloudchain
 import (
 	"bytes"
 	"encoding/gob"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -14,13 +16,13 @@ type Block struct {
 // BlockHeader stores metadata relevant to a Block.
 type BlockHeader struct {
 	Timestamp    int64
-	Hash         []byte
-	PreviousHash []byte
+	Hash         string
+	PreviousHash string
 	Nonce        int
 	Difficulty   int
 }
 
-func newBlock(difficulty int, previousHash []byte, data []byte) *Block {
+func newBlock(difficulty int, previousHash string, data []byte) *Block {
 	header := &BlockHeader{
 		Timestamp:    time.Now().Unix(),
 		PreviousHash: previousHash,
@@ -35,7 +37,7 @@ func newBlock(difficulty int, previousHash []byte, data []byte) *Block {
 	pow := NewProofOfWork(block, difficulty)
 	nonce, hash := pow.Run()
 
-	header.Hash = hash
+	header.Hash = convertHashToString(hash)
 	header.Nonce = nonce
 
 	return block
@@ -69,4 +71,13 @@ func deserializeBlock(d []byte) (*Block, error) {
 
 func (header *BlockHeader) IsLastBlock() bool {
 	return len(header.PreviousHash) == 0
+}
+
+func convertHashToString(hash []byte) string {
+	var sb strings.Builder
+	for _, e := range hash {
+		n := strconv.Itoa(int(e))
+		sb.WriteString(n)
+	}
+	return sb.String()
 }

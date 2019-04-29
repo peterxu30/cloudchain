@@ -18,6 +18,7 @@ const (
 	difficultyDoc    = "difficulty"
 	blocksCollection = "blocks"
 	initialized      = "initialized"
+	blockHeader      = "header"
 	batchSize        = 50
 )
 
@@ -25,13 +26,13 @@ const (
 // It does not actually store the blocks in-memory but rather the metadata required to read blocks from db.
 type CloudChain struct {
 	projectId  string
-	head       []byte
+	head       string
 	difficulty int
 }
 
 // BlockchainIterator is the iterator that traverses the Blockchain.
 type CloudChainIterator struct {
-	currentHash []byte
+	currentHash string
 	ref         *firestore.CollectionRef
 	ctx         context.Context
 }
@@ -66,7 +67,7 @@ func NewCloudChain(ctx context.Context, projectId string, difficulty int, genesi
 
 		genesisBlockHash := genesisBlock.Header.Hash
 
-		_, err := blocksCollectionRef.Doc(string(genesisBlockHash)).Set(ctx, genesisBlock)
+		_, err := blocksCollectionRef.Doc(genesisBlock.Header.Hash).Set(ctx, genesisBlock)
 		if err != nil {
 			return nil, err
 		}
@@ -93,7 +94,7 @@ func NewCloudChain(ctx context.Context, projectId string, difficulty int, genesi
 			return nil, err
 		}
 
-		var headVal []byte
+		var headVal string
 		err = headSnap.DataTo(&headVal)
 		if err != nil {
 			return nil, err
@@ -126,7 +127,7 @@ func newGenesisBlock(data []byte) *Block {
 	}
 	return newBlock(
 		0,
-		nil,
+		"",
 		data)
 }
 
@@ -181,7 +182,7 @@ func (cc *CloudChain) Iterator(ctx context.Context) (*CloudChainIterator, error)
 }
 
 // IteratorAtBlock returns an iterator that traverses the Blockchain from the block with input hash to oldest.
-func (cc *CloudChain) IteratorAtBlock(ctx context.Context, hash []byte) (*CloudChainIterator, error) {
+func (cc *CloudChain) IteratorAtBlock(ctx context.Context, hash string) (*CloudChainIterator, error) {
 	client, err := firestore.NewClient(ctx, cc.projectId)
 	if err != nil {
 		return nil, err
@@ -197,7 +198,7 @@ func (cc *CloudChain) IteratorAtBlock(ctx context.Context, hash []byte) (*CloudC
 
 // Next returns the next block in the Blockchain.
 func (cci *CloudChainIterator) Next() (*Block, error) {
-	if cci.currentHash == nil {
+	if cci.currentHash == "" {
 		return nil, nil
 	}
 
