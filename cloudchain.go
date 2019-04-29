@@ -14,6 +14,7 @@ import (
 
 const (
 	configCollection = "config"
+	cloudChainDoc    = "cloudChain"
 	headDoc          = "head"
 	difficultyDoc    = "difficulty"
 	blocksCollection = "blocks"
@@ -52,7 +53,7 @@ func NewCloudChain(ctx context.Context, projectId string, difficulty int, genesi
 		return nil, errors.New("Config collection not found")
 	}
 
-	_, err = configCollectionRef.Doc(initialized).Get(ctx)
+	_, err = configCollectionRef.Doc(cloudChainDoc).Get(ctx)
 	if grpc.Code(err) == codes.NotFound {
 		// initialize the cloudchain
 		difficultyMap := make(map[string]int)
@@ -64,58 +65,38 @@ func NewCloudChain(ctx context.Context, projectId string, difficulty int, genesi
 
 		blocksCollectionRef := client.Collection(blocksCollection)
 		genesisBlock := newGenesisBlock(genesisData)
-
 		genesisBlockHash := genesisBlock.Header.Hash
 
+		// Store the genesis block
 		_, err := blocksCollectionRef.Doc(genesisBlock.Header.Hash).Set(ctx, genesisBlock)
 		if err != nil {
 			return nil, err
 		}
 
-		_, err = configCollectionRef.Doc(headDoc).Set(ctx, genesisBlockHash)
-		if err != nil {
-			return nil, err
-		}
-
-		_, err = configCollectionRef.Doc(initialized).Set(ctx, true)
-		if err != nil {
-			return nil, err
-		}
-
-		return &CloudChain{
+		cloudChain := &CloudChain{
 			projectId:  projectId,
 			head:       genesisBlockHash,
 			difficulty: difficulty,
-		}, nil
+		}
+
+		_, err = configCollectionRef.Doc(cloudChainDoc).Set(ctx, cloudChain)
+		if err != nil {
+			return nil, err
+		}
+		return cloudChain, nil
 	} else if err == nil {
 		// retrieve values from Firestore
-		headSnap, err := configCollectionRef.Doc(headDoc).Get(ctx)
+		cloudChainSnap, err := configCollectionRef.Doc(cloudChainDoc).Get(ctx)
 		if err != nil {
 			return nil, err
 		}
 
-		var headVal string
-		err = headSnap.DataTo(&headVal)
+		var cloudChain CloudChain
+		err = cloudChainSnap.DataTo(&cloudChain)
 		if err != nil {
 			return nil, err
 		}
-
-		difficultySnap, err := configCollectionRef.Doc(difficultyDoc).Get(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		var difficultyMap map[string]int
-		err = difficultySnap.DataTo(&difficultyMap)
-		if err != nil {
-			return nil, err
-		}
-
-		return &CloudChain{
-			projectId:  projectId,
-			head:       headVal,
-			difficulty: difficultyMap[difficultyDoc],
-		}, nil
+		return &cloudChain, nil
 	} else {
 		return nil, err
 	}
@@ -143,22 +124,40 @@ func (cc *CloudChain) AddBlock(ctx context.Context, data []byte) (*Block, error)
 	blocksCollectionRef := client.Collection(blocksCollection)
 
 	newBlock := newBlock(cc.difficulty, cc.head, data)
-	newBlockHashString := string(newBlock.Header.Hash)
+	newBlockHash := newBlock.Header.Hash
 
 	//check if block already exists
-	_, err = blocksCollectionRef.Doc(newBlockHashString).Get(ctx)
+	_, err = blocksCollectionRef.Doc(newBlockHash).Get(ctx)
 	if grpc.Code(err) != codes.NotFound {
 		return nil, &collisionError{newBlock.Header.Hash}
 	}
 
-	_, err = blocksCollectionRef.Doc(newBlockHashString).Set(ctx, newBlock)
+	_, err = blocksCollectionRef.Doc(newBlockHash).Set(ctx, newBlock)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = configCollectionRef.Doc(headDoc).Set(ctx, newBlock.Header.Hash)
+	// // Read
+	// cloudChainSnap, err := configCollectionRef.Doc(cloudChainDoc).Get(ctx)
+	// if err != nil {
+	// 	cc.deleteBadBlock(ctx, blocksCollectionRef, newBlockHash)
+	// 	return nil, err
+	// }
+
+	// var cloudChain CloudChain
+	// err = cloudChainSnap.DataTo(&cloudChain)
+	// if err != nil {
+	// 	cc.deleteBadBlock(ctx, blocksCollectionRef, newBlockHash)
+	// 	return nil, err
+	// }
+
+	oldBlockHash := cc.head
+	cc.head = newBlockHash
+
+	_, err = configCollectionRef.Doc(cloudChainDoc).Set(ctx, cc)
 	if err != nil {
-		cc.deleteBadBlock(ctx, blocksCollectionRef, newBlockHashString)
+		cc.head = oldBlockHash
+		cc.deleteBadBlock(ctx, blocksCollectionRef, newBlockHash)
 		return nil, err
 	}
 
