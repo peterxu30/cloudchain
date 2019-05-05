@@ -4,6 +4,7 @@ package cloudchain
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"google.golang.org/api/iterator"
 	"google.golang.org/grpc"
@@ -197,7 +198,8 @@ func (cci *CloudChainIterator) Next() (*Block, error) {
 
 	blockSnap, err := cci.ref.Doc(cci.currentHash).Get(cci.ctx)
 	if err != nil {
-		return nil, err
+		fmtString := fmt.Sprintf("Failed to retrieve block with hash %s", cci.currentHash)
+		return nil, errors.New(fmtString + err.Error())
 	}
 
 	var block *Block
