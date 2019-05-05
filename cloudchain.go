@@ -61,7 +61,7 @@ func NewCloudChain(ctx context.Context, projectId string, difficulty int, genesi
 		genesisBlock := newGenesisBlock(genesisData)
 		genesisBlockHash := genesisBlock.Header.Hash
 
-		// Store the genesis block
+		// store the genesis block
 		_, err := blocksCollectionRef.Doc(genesisBlock.Header.Hash).Set(ctx, genesisBlock)
 		if err != nil {
 			return nil, err
@@ -120,7 +120,7 @@ func (cc *CloudChain) AddBlock(ctx context.Context, data []byte) (*Block, error)
 	newBlock := newBlock(cc.Difficulty, cc.Head, data)
 	newBlockHash := newBlock.Header.Hash
 
-	//check if block already exists
+	// check if block already exists
 	_, err = blocksCollectionRef.Doc(newBlockHash).Get(ctx)
 	if grpc.Code(err) != codes.NotFound {
 		return nil, &collisionError{newBlock.Header.Hash}
@@ -130,20 +130,6 @@ func (cc *CloudChain) AddBlock(ctx context.Context, data []byte) (*Block, error)
 	if err != nil {
 		return nil, err
 	}
-
-	// // Read
-	// cloudChainSnap, err := configCollectionRef.Doc(cloudChainDoc).Get(ctx)
-	// if err != nil {
-	// 	cc.deleteBadBlock(ctx, blocksCollectionRef, newBlockHash)
-	// 	return nil, err
-	// }
-
-	// var cloudChain CloudChain
-	// err = cloudChainSnap.DataTo(&cloudChain)
-	// if err != nil {
-	// 	cc.deleteBadBlock(ctx, blocksCollectionRef, newBlockHash)
-	// 	return nil, err
-	// }
 
 	oldBlockHash := cc.Head
 	cc.Head = newBlockHash
@@ -163,11 +149,6 @@ func (cc *CloudChain) deleteBadBlock(ctx context.Context, blocksCollectionRef *f
 		blocksCollectionRef.Doc(hashString).Delete(ctx)
 	}()
 }
-
-// Difficulty returns the difficulty of the Blockchain.
-// func (cc *CloudChain) Difficulty() int {
-// 	return cc.Difficulty
-// }
 
 // Iterator returns an iterator that traverses the Blockchain from most recent block to oldest.
 func (cc *CloudChain) Iterator(ctx context.Context) (*CloudChainIterator, error) {
@@ -198,17 +179,15 @@ func (cci *CloudChainIterator) Next() (*Block, error) {
 
 	blockSnap, err := cci.ref.Doc(cci.currentHash).Get(cci.ctx)
 	if err != nil {
-		//testing
-		fmtString := fmt.Sprintf("Failed to retrieve block with hash %s", cci.currentHash)
-		return nil, errors.New(fmtString + " " + err.Error())
+		errString := fmt.Sprintf("Failed to retrieve block with hash %s. Inner error: %s", cci.currentHash, err.Error())
+		return nil, errors.New(errString)
 	}
 
 	var block Block
 	err = blockSnap.DataTo(&block)
 	if err != nil {
-		//testing
-		fmtString := fmt.Sprintf("Failed to convert snap to block for hash %s", cci.currentHash)
-		return nil, errors.New(fmtString + " " + err.Error())
+		errString := fmt.Sprintf("Block with hash %s does not exist. Inner error: %s", cci.currentHash, err.Error())
+		return nil, errors.New(errString)
 	}
 
 	cci.currentHash = block.Header.PreviousHash
