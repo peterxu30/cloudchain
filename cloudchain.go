@@ -198,14 +198,17 @@ func (cci *CloudChainIterator) Next() (*Block, error) {
 
 	blockSnap, err := cci.ref.Doc(cci.currentHash).Get(cci.ctx)
 	if err != nil {
+		//testing
 		fmtString := fmt.Sprintf("Failed to retrieve block with hash %s", cci.currentHash)
-		return nil, errors.New(fmtString + err.Error())
+		return nil, errors.New(fmtString + " " + err.Error())
 	}
 
 	var block *Block
 	err = blockSnap.DataTo(block)
 	if err != nil {
-		return nil, err
+		//testing
+		fmtString := fmt.Sprintf("Failed to convert snap to block for hash %s", cci.currentHash)
+		return nil, errors.New(fmtString + " " + err.Error())
 	}
 
 	cci.currentHash = block.Header.PreviousHash
