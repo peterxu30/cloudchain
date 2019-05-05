@@ -203,8 +203,8 @@ func (cci *CloudChainIterator) Next() (*Block, error) {
 		return nil, errors.New(fmtString + " " + err.Error())
 	}
 
-	var block *Block
-	err = blockSnap.DataTo(block)
+	var block Block
+	err = blockSnap.DataTo(&block)
 	if err != nil {
 		//testing
 		fmtString := fmt.Sprintf("Failed to convert snap to block for hash %s", cci.currentHash)
@@ -212,7 +212,7 @@ func (cci *CloudChainIterator) Next() (*Block, error) {
 	}
 
 	cci.currentHash = block.Header.PreviousHash
-	return block, nil
+	return &block, nil
 }
 
 // DeleteBlockchain deletes the input Blockchain and all stored data. This is permanent and irreversible.
