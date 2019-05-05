@@ -40,7 +40,7 @@ type CloudChainIterator struct {
 }
 
 // NewCloudChain initializes a new CloudChain with the input proof of work difficulty and data for the genesis block.
-// This function should only create a new CloudChain once.
+// This function should only create a new CloudChain once for the given projectId.
 func NewCloudChain(ctx context.Context, projectId string, difficulty int, genesisData []byte) (*CloudChain, error) {
 	// client used to initialize data. DO NOT store client in struct. RECREATE CLIENT ON EVERY CLOUDCHAIN OP
 	client, err := firestore.NewClient(ctx, projectId)
