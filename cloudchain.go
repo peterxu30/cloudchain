@@ -184,6 +184,7 @@ func (cc *CloudChain) IteratorAtBlock(ctx context.Context, hash string) (*CloudC
 	cci := &CloudChainIterator{
 		currentHash: hash,
 		ref:         ref,
+		ctx:         ctx,
 	}
 	return cci, nil
 }
@@ -191,7 +192,7 @@ func (cc *CloudChain) IteratorAtBlock(ctx context.Context, hash string) (*CloudC
 // Next returns the next block in the Blockchain.
 func (cci *CloudChainIterator) Next() (*Block, error) {
 	if cci.currentHash == "" {
-		return nil, &stopIterationError{}
+		return nil, &StopIterationError{}
 	}
 
 	blockSnap, err := cci.ref.Doc(cci.currentHash).Get(cci.ctx)
