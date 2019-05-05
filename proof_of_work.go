@@ -58,7 +58,7 @@ func (pow *ProofOfWork) Run() (int, []byte) {
 		}
 	}
 
-	return nonce, hash[:]
+	return nonce, hash[:4]
 }
 
 func (pow *ProofOfWork) Validate() bool {
