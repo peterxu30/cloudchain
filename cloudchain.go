@@ -81,6 +81,8 @@ func NewCloudChain(ctx context.Context, projectId string, difficulty int, genesi
 		if err != nil {
 			return nil, err
 		}
+
+		cloudChain.addBlocksAsync(ctx)
 		return cloudChain, nil
 	} else if err == nil {
 		// retrieve values from Firestore
@@ -96,6 +98,8 @@ func NewCloudChain(ctx context.Context, projectId string, difficulty int, genesi
 		}
 
 		cloudChain.blockChan = make(chan *Block, blockChanSize)
+
+		cloudChain.addBlocksAsync(ctx)
 		return &cloudChain, nil
 	} else {
 		return nil, err
