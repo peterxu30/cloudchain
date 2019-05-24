@@ -18,7 +18,7 @@ type BlockHeader struct {
 	Timestamp    int64
 	Hash         string
 	PreviousHash string
-	Nonce        int
+	Nonce        int64
 	Difficulty   int
 }
 

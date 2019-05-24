@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"math/big"
+	"math/rand"
 )
 
 type ProofOfWork struct {
@@ -26,14 +27,14 @@ func NewProofOfWork(block *Block, targetBits int) *ProofOfWork {
 	}
 }
 
-func (pow *ProofOfWork) prepareData(nonce int) []byte {
+func (pow *ProofOfWork) prepareData(nonce int64) []byte {
 	data := bytes.Join(
 		[][]byte{
 			[]byte(pow.block.Header.PreviousHash),
 			pow.block.Data,
 			IntToBytes(pow.block.Header.Timestamp),
 			IntToBytes(int64(pow.targetBits)),
-			IntToBytes(int64(nonce)),
+			IntToBytes(nonce),
 		},
 		[]byte{},
 	)
@@ -41,10 +42,10 @@ func (pow *ProofOfWork) prepareData(nonce int) []byte {
 	return data
 }
 
-func (pow *ProofOfWork) Run() (int, []byte) {
+func (pow *ProofOfWork) Run() (int64, []byte) {
 	var hashInt big.Int
 	var hash [32]byte
-	nonce := 0
+	nonce := rand.Int63()
 
 	for nonce < math.MaxInt64 {
 		data := pow.prepareData(nonce)
