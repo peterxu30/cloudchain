@@ -153,15 +153,28 @@ func addBlocksFromBlockChannel(cc *CloudChain) {
 		blocksCollectionRef := client.Collection(blocksCollection)
 
 		// check if block already exists
-		_, err = blocksCollectionRef.Doc(blockHash).Get(ctx)
-		if grpc.Code(err) != codes.NotFound {
-			// err := &collisionError{block.Header.Hash}
+		doc, err := blocksCollectionRef.Doc(blockHash).Get(ctx)
+
+		switch {
+		case doc != nil && doc.Exists():
+			err = &collisionError{block.Header.Hash}
+			fallthrough
+		case err != nil && grpc.Code(err) != codes.NotFound: // notfound err is acceptable and is satisfied in the first case
 			log.Println(err)
 			payload.errorChannel <- err
 			close(payload.addedBlockChannel)
 			close(payload.errorChannel)
 			continue
 		}
+
+		// if doc.Exists() {
+		// 	// err := &collisionError{block.Header.Hash}
+		// 	log.Println(err)
+		// 	payload.errorChannel <- err
+		// 	close(payload.addedBlockChannel)
+		// 	close(payload.errorChannel)
+		// 	continue
+		// }
 
 		_, err = blocksCollectionRef.Doc(blockHash).Set(ctx, block)
 		if err != nil {
@@ -235,9 +248,12 @@ func (cc *CloudChain) AddBlock(ctx context.Context, data []byte) (*Block, error)
 	newBlockHash := newBlock.Header.Hash
 
 	// check if block already exists
-	_, err = blocksCollectionRef.Doc(newBlockHash).Get(ctx)
-	if grpc.Code(err) != codes.NotFound {
+	doc, err := blocksCollectionRef.Doc(newBlockHash).Get(ctx)
+	switch {
+	case doc != nil && doc.Exists():
 		return nil, &collisionError{newBlock.Header.Hash}
+	case err != nil && grpc.Code(err) != codes.NotFound:
+		return nil, err
 	}
 
 	_, err = blocksCollectionRef.Doc(newBlockHash).Set(ctx, newBlock)
