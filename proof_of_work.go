@@ -7,7 +7,6 @@ import (
 	"log"
 	"math"
 	"math/big"
-	"math/rand"
 )
 
 type ProofOfWork struct {
@@ -45,7 +44,7 @@ func (pow *ProofOfWork) prepareData(nonce int64) []byte {
 func (pow *ProofOfWork) Run() (int64, []byte) {
 	var hashInt big.Int
 	var hash [32]byte
-	nonce := rand.Int63()
+	var nonce int64
 
 	for nonce < math.MaxInt64 {
 		data := pow.prepareData(nonce)
