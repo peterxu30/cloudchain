@@ -9,6 +9,7 @@ import (
 	"math/big"
 )
 
+// ProofOfWork contains the information necessary to run the proof of work scheme used when adding a block to the CloudChain.
 type ProofOfWork struct {
 	block      *Block
 	target     *big.Int
@@ -41,6 +42,7 @@ func (pow *ProofOfWork) prepareData(nonce int64) []byte {
 	return data
 }
 
+// Run computes the nonce that satisfies the proof of work.
 func (pow *ProofOfWork) Run() (int64, []byte) {
 	var hashInt big.Int
 	var hash [32]byte
@@ -58,9 +60,10 @@ func (pow *ProofOfWork) Run() (int64, []byte) {
 		}
 	}
 
-	return nonce, hash[:8]
+	return nonce, hash[:]
 }
 
+// Validate will check if the proof of work is valid.
 func (pow *ProofOfWork) Validate() bool {
 	var hashInt big.Int
 

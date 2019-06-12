@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+// Block is the representation of a block on the CloudChain.
+// It is made of a BlockHeader of metadata and a Data payload in the form of a byte array.
 type Block struct {
 	Header *BlockHeader
 	Data   []byte
@@ -37,7 +39,7 @@ func newBlock(difficulty int, previousHash string, data []byte) *Block {
 	pow := NewProofOfWork(block, difficulty)
 	nonce, hash := pow.Run()
 
-	header.Hash = convertHashToString(hash)
+	header.Hash = convertHashToString(hash[:8])
 	header.Nonce = nonce
 
 	return block

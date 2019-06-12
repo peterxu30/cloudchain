@@ -42,16 +42,9 @@ type addBlockPayload struct {
 	errorChannel      chan error
 }
 
-// BlockchainIterator is the iterator that traverses the Blockchain.
-type CloudChainIterator struct {
-	projectId   string
-	currentHash string
-}
-
 // NewCloudChain initializes a new CloudChain with the input proof of work difficulty and data for the genesis block.
 // This function should only create a new CloudChain once for the given projectId.
 func NewCloudChain(ctx context.Context, projectId string, difficulty int, genesisData []byte) (*CloudChain, error) {
-	// client used to initialize data. DO NOT store client in struct. RECREATE CLIENT ON EVERY CLOUDCHAIN OP
 	client, err := firestore.NewClient(ctx, projectId)
 	if err != nil {
 		return nil, err
@@ -63,8 +56,11 @@ func NewCloudChain(ctx context.Context, projectId string, difficulty int, genesi
 		return nil, errors.New("Config collection not found")
 	}
 
+	var cloudChain CloudChain
+
 	_, err = configCollectionRef.Doc(cloudChainDoc).Get(ctx)
-	if grpc.Code(err) == codes.NotFound {
+	switch {
+	case grpc.Code(err) == codes.NotFound:
 		// initialize the cloudchain
 		blocksCollectionRef := client.Collection(blocksCollection)
 		genesisBlock := newGenesisBlock(genesisData)
@@ -76,40 +72,29 @@ func NewCloudChain(ctx context.Context, projectId string, difficulty int, genesi
 			return nil, err
 		}
 
-		cloudChain := &CloudChain{
-			ProjectId:       projectId,
-			Head:            genesisBlockHash,
-			Difficulty:      difficulty,
-			addBlockChannel: make(chan addBlockPayload, addBlockChannelSize),
+		cloudChain = CloudChain{
+			ProjectId:  projectId,
+			Head:       genesisBlockHash,
+			Difficulty: difficulty,
 		}
-
-		_, err = configCollectionRef.Doc(cloudChainDoc).Set(ctx, cloudChain)
-		if err != nil {
-			return nil, err
-		}
-
-		cloudChain.addBlocksAsync(ctx)
-		return cloudChain, nil
-	} else if err == nil {
+	case err == nil:
 		// retrieve values from Firestore
 		cloudChainSnap, err := configCollectionRef.Doc(cloudChainDoc).Get(ctx)
 		if err != nil {
 			return nil, err
 		}
 
-		var cloudChain CloudChain
 		err = cloudChainSnap.DataTo(&cloudChain)
 		if err != nil {
 			return nil, err
 		}
-
-		cloudChain.addBlockChannel = make(chan addBlockPayload, addBlockChannelSize)
-
-		cloudChain.addBlocksAsync(ctx)
-		return &cloudChain, nil
-	} else {
+	default:
 		return nil, err
 	}
+
+	cloudChain.addBlockChannel = make(chan addBlockPayload, addBlockChannelSize)
+	cloudChain.addBlocksAsync()
+	return &cloudChain, nil
 }
 
 func newGenesisBlock(data []byte) *Block {
@@ -122,7 +107,7 @@ func newGenesisBlock(data []byte) *Block {
 		data)
 }
 
-func (cc *CloudChain) addBlocksAsync(ctx context.Context) {
+func (cc *CloudChain) addBlocksAsync() {
 	go addBlocksRecoverer(5, addBlocksFromBlockChannel, cc)
 }
 
@@ -159,7 +144,7 @@ func addBlocksFromBlockChannel(cc *CloudChain) {
 		case doc != nil && doc.Exists():
 			err = &collisionError{block.Header.Hash}
 			fallthrough
-		case err != nil && grpc.Code(err) != codes.NotFound: // notfound err is acceptable and is satisfied in the first case
+		case err != nil && grpc.Code(err) != codes.NotFound: // NotFound err is acceptable and is satisfied in the first case
 			log.Println(err)
 			payload.errorChannel <- err
 			close(payload.addedBlockChannel)
@@ -167,15 +152,7 @@ func addBlocksFromBlockChannel(cc *CloudChain) {
 			continue
 		}
 
-		// if doc.Exists() {
-		// 	// err := &collisionError{block.Header.Hash}
-		// 	log.Println(err)
-		// 	payload.errorChannel <- err
-		// 	close(payload.addedBlockChannel)
-		// 	close(payload.errorChannel)
-		// 	continue
-		// }
-
+		// Add block to store
 		_, err = blocksCollectionRef.Doc(blockHash).Set(ctx, block)
 		if err != nil {
 			log.Println(err)
@@ -185,6 +162,7 @@ func addBlocksFromBlockChannel(cc *CloudChain) {
 			continue
 		}
 
+		// Set block as new head
 		oldBlockHash := cc.Head
 		cc.Head = blockHash
 
@@ -218,10 +196,12 @@ func addBlocksRecoverer(maxPanics int, f func(cc *CloudChain), cc *CloudChain) {
 	f(cc)
 }
 
-// Consider making the channel pass a tuple of (block, wg/lock etc) s.t. when the AddBlockAsync goroutine adds this block, it calls Done/unlocks the wg/lock to tell this call it's completed.
-// This method will become a blocking method.
-// Currently not blocking
-func (cc *CloudChain) AddBlockExperimental(ctx context.Context, data []byte) (<-chan *Block, <-chan error) {
+// AddBlock adds a block containing the input data to the front of the CloudChain.
+// This is an asynchronous nonblocking call that returns two channels each of buffer size 1.
+// The first channel is of type *Block and will yield the added block when the add operation is complete.
+// The second channel is of type error and will yield any error that has occured in the add operation. If an error is yielded, the *Block channel will have never have values.
+// When the asynchronous add is complete, both channels will be closed so it is valid to check for such.
+func (cc *CloudChain) AddBlock(ctx context.Context, data []byte) (<-chan *Block, <-chan error) {
 	payload := addBlockPayload{
 		ctx:               ctx,
 		data:              data,
@@ -233,113 +213,33 @@ func (cc *CloudChain) AddBlockExperimental(ctx context.Context, data []byte) (<-
 	return payload.addedBlockChannel, payload.errorChannel
 }
 
-// AddBlock adds a block containing the input data to the front of the CloudChain.
-func (cc *CloudChain) AddBlock(ctx context.Context, data []byte) (*Block, error) {
-	client, err := firestore.NewClient(ctx, cc.ProjectId)
-	if err != nil {
-		return nil, err
-	}
-	defer client.Close()
-
-	configCollectionRef := client.Collection(configCollection)
-	blocksCollectionRef := client.Collection(blocksCollection)
-
-	newBlock := newBlock(cc.Difficulty, cc.Head, data)
-	newBlockHash := newBlock.Header.Hash
-
-	// check if block already exists
-	doc, err := blocksCollectionRef.Doc(newBlockHash).Get(ctx)
-	switch {
-	case doc != nil && doc.Exists():
-		return nil, &collisionError{newBlock.Header.Hash}
-	case err != nil && grpc.Code(err) != codes.NotFound:
-		return nil, err
-	}
-
-	_, err = blocksCollectionRef.Doc(newBlockHash).Set(ctx, newBlock)
-	if err != nil {
-		return nil, err
-	}
-
-	oldBlockHash := cc.Head
-	cc.Head = newBlockHash
-
-	_, err = configCollectionRef.Doc(cloudChainDoc).Set(ctx, cc)
-	if err != nil {
-		cc.Head = oldBlockHash
-		cc.deleteBadBlock(ctx, blocksCollectionRef, newBlockHash)
-		return nil, err
-	}
-
-	return newBlock, nil
-}
-
 func (cc *CloudChain) deleteBadBlock(ctx context.Context, blocksCollectionRef *firestore.CollectionRef, hashString string) {
 	go func() {
 		blocksCollectionRef.Doc(hashString).Delete(ctx)
 	}()
 }
 
-func (cc *CloudChain) Close() {
+func (cc *CloudChain) close() {
 	close(cc.addBlockChannel)
 }
 
 // Iterator returns an iterator that traverses the Blockchain from most recent block to oldest.
-// TODO: Change to pass in ctx every next call.
 func (cc *CloudChain) Iterator() (*CloudChainIterator, error) {
 	return cc.IteratorAtBlock(cc.Head)
 }
 
 // IteratorAtBlock returns an iterator that traverses the Blockchain from the block with input hash to oldest.
 func (cc *CloudChain) IteratorAtBlock(hash string) (*CloudChainIterator, error) {
-	// client, err := firestore.NewClient(ctx, cci.ProjectId)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// ref := client.Collection(blocksCollection)
 	cci := &CloudChainIterator{
 		projectId:   cc.ProjectId,
 		currentHash: hash,
-		// ref:         ref,
-		// ctx:         ctx,
 	}
 	return cci, nil
 }
 
-// Next returns the next block in the Blockchain.
-func (cci *CloudChainIterator) Next(ctx context.Context) (*Block, error) {
-	if cci.currentHash == "" {
-		return nil, &StopIterationError{}
-	}
-
-	client, err := firestore.NewClient(ctx, cci.projectId)
-	if err != nil {
-		return nil, err
-	}
-
-	ref := client.Collection(blocksCollection)
-
-	blockSnap, err := ref.Doc(cci.currentHash).Get(ctx)
-	if err != nil {
-		errString := fmt.Sprintf("Failed to retrieve block with hash %s. Inner error: %s", cci.currentHash, err.Error())
-		return nil, errors.New(errString)
-	}
-
-	var block Block
-	err = blockSnap.DataTo(&block)
-	if err != nil {
-		errString := fmt.Sprintf("Block with hash %s does not exist. Inner error: %s", cci.currentHash, err.Error())
-		return nil, errors.New(errString)
-	}
-
-	cci.currentHash = block.Header.PreviousHash
-	return &block, nil
-}
-
 // DeleteCloudChain deletes the input CloudChain and all stored data. This is permanent and irreversible.
 func DeleteCloudChain(ctx context.Context, cc *CloudChain) error {
-	cc.Close()
+	cc.close()
 
 	client, err := firestore.NewClient(ctx, cc.ProjectId)
 	if err != nil {
