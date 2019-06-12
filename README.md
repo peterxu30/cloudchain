@@ -1,6 +1,6 @@
-# Blockchain
+# CloudChain
 
-A simple implementation of a blockchain-based data store.
+A simple implementation of a blockchain-based data store built on top of Google Firestore.
 
 ## Credit
 
